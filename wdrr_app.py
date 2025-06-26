@@ -1,0 +1,225 @@
+import pandas as pd
+import streamlit as st
+import matplotlib.pyplot as plt
+import plotly.express as px
+
+# Page configuration
+st.set_page_config(layout="wide")
+st.markdown("<h1 style='text-align: center;'>WDRR Sequence Calculator for CL</h1>", unsafe_allow_html=True)
+
+# Load data
+@st.cache_data
+def load_data():
+    df = pd.read_csv("WDRR_seq_CSV.csv")
+    df.columns = df.columns.str.strip()
+    return df
+
+df = load_data()
+
+# Utility function to generate grouped outcome summary
+def generate_outcome_summary(filtered_df, scenario_title):
+    total_rows = len(filtered_df)
+    filtered_df["Outcome"] = filtered_df["End Day"].astype(str) + " " + filtered_df["End point seq"].astype(str)
+
+    outcome_summary = (
+        filtered_df.groupby("Outcome").size().reset_index(name="Count")
+    )
+    outcome_summary["End Day"] = outcome_summary["Outcome"].str.extract(r'(Day \d)').fillna("Unknown")
+    outcome_summary["Sequence"] = outcome_summary["Outcome"].str.extract(r'Day \d (.*)')
+    outcome_summary["Percentage"] = (outcome_summary["Count"] / outcome_summary["Count"].sum() * 100).round(1)
+
+    day_order = sorted(outcome_summary["End Day"].unique(), key=lambda x: int(x.split()[1]) if x != "Unknown" else 99)
+
+    st.markdown(f"### {scenario_title}")
+    st.subheader("\U0001F4CA Outcome Frequencies")
+    for i, day in enumerate(day_order, 1):
+        group = outcome_summary[outcome_summary["End Day"] == day]
+        total = group["Count"].sum()
+        pct_total = round((total / outcome_summary["Count"].sum()) * 100, 1)
+        st.markdown(f"**{i}. {day}**")
+        for _, row in group.iterrows():
+            st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;{row['Sequence']} / Count: {row['Count']} ({row['Percentage']}%)")
+        st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;_Outcomes in {day} - {total} ({pct_total}% of total)_\n")
+
+    st.subheader("\U0001F4C8 Outcome Distribution")
+    fig, ax = plt.subplots(figsize=(12, 6))
+    ax.bar(outcome_summary["Outcome"], outcome_summary["Percentage"])
+    ax.set_ylabel("Percentage")
+    ax.set_xlabel("Outcome")
+    ax.set_xticks(range(len(outcome_summary["Outcome"])))
+    ax.set_xticklabels(outcome_summary["Outcome"], rotation=45, ha='right')
+    fig.tight_layout()
+    st.pyplot(fig)
+
+    st.subheader("\U0001F4E6 Dataset Summary")
+    st.write(f"**Number of datasets:** {total_rows}")
+
+    st.subheader("\U0001F9EE End High/Low session possibilities")
+    hl_summary = filtered_df["End High/Low"].value_counts().reset_index()
+    hl_summary.columns = ["End High/Low", "Count"]
+    hl_summary["Percentage"] = (hl_summary["Count"] / hl_summary["Count"].sum() * 100).round(2)
+    st.dataframe(hl_summary)
+
+# Function for interactive weekly High/Low distribution
+def plot_day_distribution(df, column, title, scenario, key_prefix=""):
+    st.subheader(f"{title} Distribution ({scenario})")
+    default_days = sorted(df[column].dropna().unique())
+    selected_days = st.multiselect(
+        f"Select {title} to include:",
+        default_days,
+        default=default_days,
+        key=f"{key_prefix}_multi"
+    )
+    filtered = df[df[column].isin(selected_days)]
+    counts = filtered[column].value_counts().sort_index()
+    percentages = (counts / counts.sum() * 100).round(1)
+
+    fig = px.bar(
+        x=[f"Day {int(d)}" if str(d).isdigit() else str(d) for d in percentages.index],
+        y=percentages.values,
+        labels={'x': 'Day', 'y': '%'},
+        text=[f"{p}%" for p in percentages.values],
+    )
+    fig.update_traces(marker_color='lightskyblue', textposition='outside')
+    fig.update_layout(yaxis_range=[0, 100])
+
+    st.plotly_chart(fig, use_container_width=True, key=f"{key_prefix}_plot")
+
+# SCENARIO FILTERS
+col1, col2 = st.columns(2)
+with col1:
+    st.header("\U0001F7E2 Scenario 1 Filters")
+    conf1 = st.selectbox("Confirmation", ["All"] + sorted(df["Confirmation"].dropna().unique()))
+    conf_tf1 = st.selectbox("Confirmation True/False", ["All"] + sorted(df["Conf True/False"].dropna().unique()))
+    model1 = st.selectbox("Model (Tuesday RDR-Wednesday ODR)", ["All"] + sorted(df["Model"].dropna().unique()))
+    start_day1 = st.selectbox("Start Day", ["All"] + sorted(df["Start Day"].dropna().unique()))
+    start_hl1 = st.selectbox("Starting Point High/Low", ["All"] + sorted(df["Start High/Low.1"].dropna().unique()))
+    start_sess1 = st.selectbox("Starting Point Session", ["", "All"] + sorted(df["Start session"].dropna().unique()))
+
+with col2:
+    st.header("\U0001F535 Scenario 2 Filters")
+    conf2 = st.selectbox("Confirmation ", ["All"] + sorted(df["Confirmation"].dropna().unique()), key="conf2")
+    conf_tf2 = st.selectbox("Confirmation True/False", ["All"] + sorted(df["Conf True/False"].dropna().unique()), key="conf_tf2")
+    model2 = st.selectbox("Model (Tuesday RDR-Wednesday ODR)", ["All"] + sorted(df["Model"].dropna().unique()), key="model2")
+    start_day2 = st.selectbox("Start Day ", ["All"] + sorted(df["Start Day"].dropna().unique()), key="start_day2")
+    start_hl2 = st.selectbox("Starting Point High/Low ", ["All"] + sorted(df["Start High/Low.1"].dropna().unique()), key="start_hl2")
+    start_sess2 = st.selectbox("Starting Point Session ", ["", "All"] + sorted(df["Start session"].dropna().unique()), key="start_sess2")
+
+# APPLY FILTERS
+filtered1 = df.copy()
+filtered2 = df.copy()
+filters1 = [(conf1, "Confirmation"), (conf_tf1, "Conf True/False"), (model1, "Model"), (start_day1, "Start Day"), (start_hl1, "Start High/Low.1"), (start_sess1, "Start session")]
+filters2 = [(conf2, "Confirmation"), (conf_tf2, "Conf True/False"), (model2, "Model"), (start_day2, "Start Day"), (start_hl2, "Start High/Low.1"), (start_sess2, "Start session")]
+for val, col in filters1:
+    if val not in ["", "All"]:
+        filtered1 = filtered1[filtered1[col] == val]
+for val, col in filters2:
+    if val not in ["", "All"]:
+        filtered2 = filtered2[filtered2[col] == val]
+
+# DISPLAY RESULTS
+st.divider()
+col3, col4 = st.columns(2)
+with col3:
+    if not filtered1.empty:
+        generate_outcome_summary(filtered1, "\U0001F7E2 Scenario 1 Results")
+    else:
+        st.warning("No data found for Scenario 1 filters.")
+with col4:
+    if not filtered2.empty:
+        generate_outcome_summary(filtered2, "\U0001F535 Scenario 2 Results")
+    else:
+        st.warning("No data found for Scenario 2 filters.")
+
+# WEEKLY HIGH AND LOW DAY SECTION
+st.divider()
+st.markdown("<h2 style='text-align: center;'>📅 Weekly High and Low Day</h2>", unsafe_allow_html=True)
+
+col_hd1, col_ld1, col_hd2, col_ld2 = st.columns(4)
+
+with col_hd1:
+    plot_day_distribution(filtered1, "High Day", "High Day", "Scenario 1", key_prefix="s1_hd")
+
+with col_ld1:
+    plot_day_distribution(filtered1, "Low Day", "Low Day", "Scenario 1", key_prefix="s1_ld")
+
+with col_hd2:
+    plot_day_distribution(filtered2, "High Day", "High Day", "Scenario 2", key_prefix="s2_hd")
+
+with col_ld2:
+    plot_day_distribution(filtered2, "Low Day", "Low Day", "Scenario 2", key_prefix="s2_ld")
+
+
+# Reusable plotting function for model distribution
+def plot_model_distribution(df, column, scenario, key_prefix):
+    st.subheader(f"{column} Distribution ({scenario})")
+    default_values = sorted(df[column].dropna().unique())
+    select_key = f"{key_prefix}_{column.replace(' ', '_')}_select"
+    selected_values = st.multiselect(
+        f"Select {column} values to include:",
+        default_values,
+        default=default_values,
+        key=select_key
+    )
+    filtered = df[df[column].isin(selected_values)]
+    counts = filtered[column].value_counts().sort_index()
+    percentages = (counts / counts.sum() * 100).round(1)
+
+    fig = px.bar(
+        x=percentages.index,
+        y=percentages.values,
+        labels={'x': 'Model Type', 'y': '%'},
+        text=[f"{p}%" for p in percentages.values],
+    )
+    fig.update_traces(marker_color='mediumslateblue', textposition='outside')
+    fig.update_layout(yaxis_range=[0, 100])
+
+    chart_key = f"{key_prefix}_{column.replace(' ', '_')}_chart"
+    st.plotly_chart(fig, use_container_width=True, key=chart_key)
+# WEEKLY MODEL DISTRIBUTION SECTION
+st.divider()
+st.markdown("<h2 style='text-align: center;'>📊 Weekly Model Distribution</h2>", unsafe_allow_html=True)
+
+# Define model pairs for layout: (Day 2 & 3), (Day 4 & 5)
+model_pairs = [("Day 2 Model", "Day 3 Model"), ("Day 4 Model", "Day 5 Model")]
+
+for pair in model_pairs:
+    left_col1, left_col2, right_col1, right_col2 = st.columns(4)
+
+    with left_col1:
+        plot_model_distribution(filtered1, pair[0], "Scenario 1", key_prefix=f"s1_{pair[0].replace(' ', '_')}")
+    with left_col2:
+        plot_model_distribution(filtered1, pair[1], "Scenario 1", key_prefix=f"s1_{pair[1].replace(' ', '_')}")
+
+    with right_col1:
+        plot_model_distribution(filtered2, pair[0], "Scenario 2", key_prefix=f"s2_{pair[0].replace(' ', '_')}")
+    with right_col2:
+        plot_model_distribution(filtered2, pair[1], "Scenario 2", key_prefix=f"s2_{pair[1].replace(' ', '_')}")
+
+
+
+
+# FINAL COMPARISON SECTION
+st.divider()
+st.markdown("<h3 style='text-align: center;'>\U0001F50D Comparison</h3>", unsafe_allow_html=True)
+count1 = len(filtered1)
+count2 = len(filtered2)
+combined_total = count1 + count2 if count1 + count2 > 0 else 1
+pct1 = round((count1 / combined_total) * 100, 1)
+pct2 = round((count2 / combined_total) * 100, 1)
+c1, c2, c3 = st.columns([1, 2, 1])
+with c2:
+    st.markdown(f"<p style='text-align: center;'><strong>Scenario 1:</strong> {pct1}% ({count1} datasets)</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='text-align: center;'><strong>Scenario 2:</strong> {pct2}% ({count2} datasets)</p>", unsafe_allow_html=True)
+
+# PERCENTAGE OF OCCURRENCE SECTION
+st.divider()
+st.markdown("<h3 style='text-align: center;'>\U0001F4CC Percentage of occurrence</h3>", unsafe_allow_html=True)
+full_total = len(df)
+occ_pct1 = round((count1 / full_total) * 100, 1)
+occ_pct2 = round((count2 / full_total) * 100, 1)
+c4, c5, c6 = st.columns([1, 2, 1])
+with c5:
+    st.markdown(f"<p style='text-align: center;'><strong>Scenario 1:</strong> {occ_pct1}% of total ({count1} datasets from {full_total})</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='text-align: center;'><strong>Scenario 2:</strong> {occ_pct2}% of total ({count2} datasets from {full_total})</p>", unsafe_allow_html=True)
+
