@@ -61,7 +61,11 @@ def generate_outcome_summary(filtered_df, scenario_title):
     st.dataframe(hl_summary)
 
 def plot_model_distribution(df, column, scenario, key_prefix, color):
-    st.subheader(f"{column} Distribution ({scenario})")
+    if scenario:
+       st.subheader(f"{column} Distribution ({scenario})")
+    else:
+        st.subheader(f"{column} Distribution")
+
     default_values = sorted(df[column].dropna().unique())
     selected_values = st.multiselect(
         f"Select {column} values to include:",
