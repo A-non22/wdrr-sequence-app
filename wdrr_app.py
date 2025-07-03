@@ -254,12 +254,12 @@ model_filtered1, model_filtered2 = filtered1.copy(), filtered2.copy()
 s1_cols = st.columns(4)
 for i, day in enumerate(["Day 2 Model", "Day 3 Model", "Day 4 Model", "Day 5 Model"]):
     with s1_cols[i]:
-        model_filtered1 = plot_model_distribution(model_filtered1, day, "Scenario 1", key_prefix=f"s1_{day.replace(' ', '_')}", color=scenario1_color)
+        model_filtered1 = plot_model_distribution(model_filtered1, day, key_prefix=f"s1_{day.replace(' ', '_')}", color=scenario1_color)
 
 s2_cols = st.columns(4)
 for i, day in enumerate(["Day 2 Model", "Day 3 Model", "Day 4 Model", "Day 5 Model"]):
     with s2_cols[i]:
-        model_filtered2 = plot_model_distribution(model_filtered2, day, "Scenario 2", key_prefix=f"s2_{day.replace(' ', '_')}", color=scenario2_color)
+        model_filtered2 = plot_model_distribution(model_filtered2, day, key_prefix=f"s2_{day.replace(' ', '_')}", color=scenario2_color)
 
 # FINAL COMPARISON SECTION
 st.divider()
