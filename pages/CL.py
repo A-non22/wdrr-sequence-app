@@ -268,7 +268,7 @@ col_p1a, col_p1b, col_p2a, col_p2b = st.columns(4)
 
 # --- Scenario 1 ---
 with col_p1a:
-    st.subheader("Day 2 Type 2 (Scenario 1)")
+    st.subheader("Day 2 Partial (Scenario 1)")
     s1_type2_selected = st.multiselect(
         "Select values to include:",
         pt1_vals,
@@ -286,7 +286,7 @@ with col_p1b:
 
 # --- Scenario 2 ---
 with col_p2a:
-    st.subheader("Day 2 Type 2 (Scenario 2)")
+    st.subheader("Day 2 Partial (Scenario 2)")
     s2_type2_selected = st.multiselect(
         "Select values to include:",
         pt2_vals,
